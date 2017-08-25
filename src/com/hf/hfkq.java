@@ -24,6 +24,15 @@ import java.text.SimpleDateFormat;
 import com.eltima.components.ui.DatePicker;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+
+import jxl.Workbook;
+import jxl.write.Label;
+import jxl.write.WritableSheet;
+import jxl.write.WritableWorkbook;
+import jxl.write.WriteException;
+import jxl.write.biff.RowsExceededException;
 
 import com.hf.ZkemSDK;
 import com.hf.ConfigReader;
@@ -47,9 +56,11 @@ public class hfkq extends JFrame{
     private Button btnGetResult;
     private Button btnAnalyseLog;
     
+    private JLabel jl_status;
     private Dialog dlgError;
     
     private String DownloadPath="";
+    
     
 	public static void main(String[] args)  
     {  
@@ -59,12 +70,6 @@ public class hfkq extends JFrame{
 	public hfkq() {
 		init();
 		
-//        ConfigReader cr = new  ConfigReader("E:/test.ini");
-//        System.out.println(cr.get("config", "IP"));
-        
-//		ZkemSDK sdk = new ZkemSDK();  
-//        boolean  connFlag = sdk.connect("192.168.1.100", 4370);  
-//        System.out.println("conn:"+connFlag);  
 	}
 	
 	
@@ -85,6 +90,9 @@ public class hfkq extends JFrame{
         //jl_title.setHorizontalAlignment(JLabel.CENTER);
         jl = new JLabel("软件操作目录：");
         tf = new TextField(30);// 创建单行文本对象60长度大小字符
+        String defaultPath = System.getProperty("user.dir");
+        tf.setText(defaultPath);
+        DownloadPath=defaultPath;
         tf.setEditable(false);
         
         btnChoose = new Button("选择目录");  
@@ -101,6 +109,9 @@ public class hfkq extends JFrame{
         btnAnalyseLog = new Button("分析考勤数据");
         btnAnalyseLog.setEnabled(false);
         btnQuit = new Button("退出");
+        
+        jl_status = new JLabel("");
+        
         //为指定的Container创建GroupLayout
         GroupLayout layout = new GroupLayout(panel);
         layout.setAutoCreateGaps(true);
@@ -109,7 +120,7 @@ public class hfkq extends JFrame{
         //创建GroupLayout的水平连续组，越先加入的ParalleGroupLayout优先级越高
         GroupLayout.SequentialGroup hGroup = layout.createSequentialGroup();
         hGroup.addGroup(layout.createParallelGroup().addComponent(jl).addComponent(btnConn).addComponent(jl_kq).addComponent(btnGetResult));        
-        hGroup.addGroup(layout.createParallelGroup().addComponent(tf).addComponent(btnDownload).addComponent(datepick).addComponent(btnAnalyseLog));        
+        hGroup.addGroup(layout.createParallelGroup().addComponent(tf).addComponent(btnDownload).addComponent(datepick).addComponent(btnAnalyseLog).addComponent(jl_status));        
         hGroup.addGroup(layout.createParallelGroup().addComponent(btnChoose).addComponent(btnUsers).addComponent(comboBox).addComponent(btnQuit));
         
         layout.setHorizontalGroup(hGroup);
@@ -118,7 +129,8 @@ public class hfkq extends JFrame{
         vGroup.addGroup(layout.createParallelGroup().addComponent(jl).addComponent(tf).addComponent(btnChoose));
         vGroup.addGroup(layout.createParallelGroup().addComponent(btnConn).addComponent(btnDownload).addComponent(btnUsers));
         vGroup.addGroup(layout.createParallelGroup().addComponent(jl_kq).addComponent(datepick).addComponent(comboBox));
-        vGroup.addGroup(layout.createParallelGroup().addComponent(btnGetResult).addComponent(btnAnalyseLog).addComponent(btnQuit));        
+        vGroup.addGroup(layout.createParallelGroup().addComponent(btnGetResult).addComponent(btnAnalyseLog).addComponent(btnQuit)); 
+        vGroup.addGroup(layout.createParallelGroup().addComponent(jl_status));
         //设置垂直组
         layout.setVerticalGroup(vGroup);
         //加载一下窗体上的事件  
@@ -144,7 +156,8 @@ public class hfkq extends JFrame{
         btnConn.addActionListener(new ActionListener() {  
         	@Override  
         	public void actionPerformed(ActionEvent e) {  
-        	// TODO Auto-generated method stub   		
+        	// TODO Auto-generated method stub 
+        		btnConn.setEnabled(false);
         		String iniPath = System.getProperty("user.dir");
         		//JOptionPane.showMessageDialog(null, "当前路径是："+iniPath, "提示", JOptionPane.INFORMATION_MESSAGE); 
         		try{
@@ -168,23 +181,25 @@ public class hfkq extends JFrame{
                     	}
                     }
                     if(connFlag){
-                    	JOptionPane.showMessageDialog(null, "所有考勤机连接成功！", "提示", JOptionPane.INFORMATION_MESSAGE); 
+                    	JOptionPane.showMessageDialog(null, "所有考勤机连接成功！", "提示", JOptionPane.INFORMATION_MESSAGE);
+                    	btnConn.setEnabled(true);
                     }else{
-                    	JOptionPane.showMessageDialog(null, strError+"考勤机连接失败！", "错误", JOptionPane.ERROR_MESSAGE); 
+                    	JOptionPane.showMessageDialog(null, strError+"考勤机连接失败！", "错误", JOptionPane.ERROR_MESSAGE);
+                    	btnConn.setEnabled(true);
                     }
         		}catch(Exception err){
         			JOptionPane.showMessageDialog(null, err.toString(), "错误", JOptionPane.ERROR_MESSAGE);
+        			btnConn.setEnabled(true);
         		}
-        		
-        		
         	}  
         }); 
         //选择保存目录
         btnChoose.addActionListener(new ActionListener() {  
         	@Override  
         	public void actionPerformed(ActionEvent e) {  
-        	// TODO Auto-generated method stub  
-        		JFileChooser fileChooser = new JFileChooser("C:\\");
+        	// TODO Auto-generated method stub
+        		String iniPath = System.getProperty("user.dir");
+        		JFileChooser fileChooser = new JFileChooser(iniPath);
                 fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
                 int returnVal = fileChooser.showOpenDialog(fileChooser);
                 if(returnVal == JFileChooser.APPROVE_OPTION){       
@@ -203,6 +218,7 @@ public class hfkq extends JFrame{
         		if(DownloadPath.equals("")){
         			JOptionPane.showMessageDialog(null, "未选择操作目录，不知下载到何处！", "提示", JOptionPane.INFORMATION_MESSAGE); 
         		}else{
+        			btnDownload.setEnabled(false);
         			System.out.println("下载考勤记录到："+DownloadPath);
         			ZkemSDK sdk = new ZkemSDK();             		
             		String strError=""; 
@@ -219,14 +235,20 @@ public class hfkq extends JFrame{
                     		strError = strError + strIP[i]+" ";
                     	}else{
                     		sdk.readGeneralLogData(iMachineNumber);
-                    		saveFileItemsToTxt(iMachineNumber,sdk.getGeneralLogData(),DownloadPath+"output.txt");
+                    		if("\\".equals(DownloadPath.substring(DownloadPath.length()-1))){
+                    			saveFileItemsToTxt(iMachineNumber,sdk.getGeneralLogData(),DownloadPath+"output.txt");
+                    		}else{
+                    			saveFileItemsToTxt(iMachineNumber,sdk.getGeneralLogData(),DownloadPath+"\\output.txt");
+                    		}             		
                     	}
                     	iMachineNumber++;
                     }
                     if(strError.equals("")){
                     	JOptionPane.showMessageDialog(null, "下载完成！", "提示", JOptionPane.INFORMATION_MESSAGE); 
+                    	btnDownload.setEnabled(true);
                     }else{
-                    	JOptionPane.showMessageDialog(null, strError+"考勤数据下载失败！", "提示", JOptionPane.INFORMATION_MESSAGE); 
+                    	JOptionPane.showMessageDialog(null, strError+"考勤数据下载失败！", "提示", JOptionPane.ERROR_MESSAGE); 
+                    	btnDownload.setEnabled(true);
                     }
                     
         		}
@@ -237,6 +259,7 @@ public class hfkq extends JFrame{
         	@Override  
         	public void actionPerformed(ActionEvent e) {  
         	// TODO Auto-generated method stub  
+        		btnUsers.setEnabled(false);
         		System.out.println("下载人员信息到："+DownloadPath);
         		ZkemSDK sdk = new ZkemSDK();             		
             	String strError=""; 
@@ -256,9 +279,10 @@ public class hfkq extends JFrame{
                     
                 if(strError.equals("")){
                     JOptionPane.showMessageDialog(null, "更新完成！", "提示", JOptionPane.INFORMATION_MESSAGE);
-                    btnUsers.setEnabled(false);
+                    btnUsers.setEnabled(true);
                 }else{
-                    JOptionPane.showMessageDialog(null, strError+"更新人员信息失败！", "提示", JOptionPane.INFORMATION_MESSAGE); 
+                    JOptionPane.showMessageDialog(null, strError+"更新人员信息失败！", "提示", JOptionPane.ERROR_MESSAGE); 
+                    btnUsers.setEnabled(true);
                 }
         	}
         });
@@ -267,6 +291,7 @@ public class hfkq extends JFrame{
         	@Override  
         	public void actionPerformed(ActionEvent e) {  
         	// TODO Auto-generated method stub  
+        		btnGetResult.setEnabled(false);
         		String strDT = datepick.getText();
         		String strAP = comboBox.getSelectedItem().toString();
         		System.out.print(strDT+" "+strAP);
@@ -278,7 +303,21 @@ public class hfkq extends JFrame{
                 System.out.println(cr.get("config", "IP"));
                 String strIPs = cr.get("config", "IP").get(0);
                 String[] strIP = strIPs.split(",");
-                                 
+                
+                //清空之前下载的考勤记录
+                String strurl1 = "jdbc:Access:///"+iniPath+"/users.mdb";
+            	Connection conn1 = null;
+            	String strsql1 = "";
+            	try{
+	            	Class.forName("com.hxtt.sql.access.AccessDriver");
+	                conn1 = DriverManager.getConnection(strurl1);
+	                strsql1 = "delete from LogTmp;";
+	                PreparedStatement ps1 = conn1.prepareStatement(strsql1);
+	                ps1.execute();
+	            }catch(Exception e1){
+	            	e1.printStackTrace();  
+	            }
+                
                 int iMachineNumber=0;
                 for(int i=0;i<strIP.length;i++){
                 	System.out.println(strIP[i]);
@@ -293,9 +332,11 @@ public class hfkq extends JFrame{
                 if(strError.equals("")){
                     JOptionPane.showMessageDialog(null, "获取"+strDT+strAP+"记录成功！", "提示", JOptionPane.INFORMATION_MESSAGE);
                     btnAnalyseLog.setEnabled(true);
+                    btnGetResult.setEnabled(true);
                 }else{
-                    JOptionPane.showMessageDialog(null, strError+"获取考勤记录失败！", "提示", JOptionPane.INFORMATION_MESSAGE); 
-                    btnAnalyseLog.setEnabled(false);
+                    JOptionPane.showMessageDialog(null, strError+"获取考勤记录失败！", "提示", JOptionPane.ERROR_MESSAGE); 
+                    btnAnalyseLog.setEnabled(true);
+                    btnGetResult.setEnabled(true);
                 }
         	}
         });
@@ -307,8 +348,13 @@ public class hfkq extends JFrame{
         		if(DownloadPath.equals("")){
         			JOptionPane.showMessageDialog(null, "未选择操作目录，分析结果无法输出！", "提示", JOptionPane.INFORMATION_MESSAGE); 
         		}else{
+        			String strDT = datepick.getText();
         			String strAP = comboBox.getSelectedItem().toString();
-        			AnalyseLog(strAP,DownloadPath+"考勤分析结果.txt");
+        			if("\\".equals(DownloadPath.substring(DownloadPath.length()-1))){
+        				AnalyseLog(strDT,strAP,DownloadPath+strDT+strAP+"分析结果.xls");
+            		}else{
+            			AnalyseLog(strDT,strAP,DownloadPath+"\\"+strDT+strAP+"分析结果.xls");
+            		}      			
         			btnAnalyseLog.setEnabled(false);
         		}
         	}
@@ -336,9 +382,9 @@ public class hfkq extends JFrame{
         String strItems = null;  
         try{
         	//允许追加存储
-            //fileName = new FileOutputStream(strFileName,true); 
+            fileName = new FileOutputStream(strFileName,true); 
             //不允许追加存储
-            fileName = new FileOutputStream(strFileName); 
+            //fileName = new FileOutputStream(strFileName); 
               
             outFile = new OutputStreamWriter(fileName);  
             
@@ -408,16 +454,16 @@ public class hfkq extends JFrame{
             conn = DriverManager.getConnection(strurl);
             //stmt = conn.createStatement();
             //stmt.execute("delete from LogTmp");
-            strsql = "delete from LogTmp;";
+            //strsql = "delete from LogTmp;";
             for(Map<String,Object> map:list){
             	if("签到".equals(strAP)){
-	            	if(strDT.equals(map.get("Time").toString().substring(0,strDT.length()))&(df.parse(map.get("Time").toString()).compareTo(df.parse(strDT+" 12:00:00")))<0){
+	            	if(strDT.equals(map.get("Time").toString().substring(0,strDT.length()))&&(df.parse(map.get("Time").toString()).compareTo(df.parse(strDT+" 12:00:00")))<0){
 	            		String abc = "insert into LogTmp(machineNo,EnrollNumber,LogTime,VerifyMode,InOutMode) values('"+Integer.toString(machineNo)+"','"+map.get("EnrollNumber")+"','"+map.get("Time")+"','"+map.get("VerifyMode")+"',"+map.get("InOutMode")+");";
 	            		//stmt.execute(abc);
 	            		strsql+=abc;
 	            	}
             	}else if("签退".equals(strAP)){
-            		if(strDT.equals(map.get("Time").toString().substring(0,strDT.length()))&(df.parse(map.get("Time").toString()).compareTo(df.parse(strDT+" 12:00:00")))>0){
+            		if(strDT.equals(map.get("Time").toString().substring(0,strDT.length()))&&(df.parse(map.get("Time").toString()).compareTo(df.parse(strDT+" 12:00:00")))>0){
 	            		String abc = "insert into LogTmp(machineNo,EnrollNumber,LogTime,VerifyMode,InOutMode) values('"+Integer.toString(machineNo)+"','"+map.get("EnrollNumber")+"','"+map.get("Time")+"','"+map.get("VerifyMode")+"',"+map.get("InOutMode")+");";
 	            		//stmt.execute(abc);
 	            		strsql+=abc;
@@ -434,54 +480,91 @@ public class hfkq extends JFrame{
     }
     
     //分析考勤记录
-    public static void AnalyseLog(String strAP,String strFileName){ 
+    public static void AnalyseLog(String strDT,String strAP,String strFileName){ 
     	String iniPath = System.getProperty("user.dir");
         String strurl = "jdbc:Access:///"+iniPath+"/users.mdb";
     	Connection conn = null;
     	Statement stmt = null;
     	ResultSet rs = null;
-    	
-    	OutputStreamWriter outFile = null;  
-        FileOutputStream fileName;  
-        String strItems = null;  
+    	DateFormat df = new SimpleDateFormat("yyyy-m-d HH:mm:ss");
+    	//OutputStreamWriter outFile = null;  
+        //FileOutputStream fileName;  
+        //String strItems = null;  
         try{
             Class.forName("com.hxtt.sql.access.AccessDriver");
             conn = DriverManager.getConnection(strurl);
             stmt = conn.createStatement();
             String strsql = "select a.EnrollNumber,a.UserName from Users a left join LogTmp b on a.EnrollNumber=b.EnrollNumber where b.LogTime is null";
             rs=stmt.executeQuery(strsql);
-            //允许追加存储
-            //fileName = new FileOutputStream(strFileName,true);
-            //不允许追加存储
-            fileName = new FileOutputStream(strFileName);
-            outFile = new OutputStreamWriter(fileName); 
-            outFile.write("未打卡人员名单：\n");
+            //新建xls文件
+            WritableWorkbook workbook = Workbook.createWorkbook(new File(strFileName)); 
+            //新建工作表保存未打卡人员
+            WritableSheet firstSheet = workbook.createSheet("未打卡人员", 0);
+            Label label1 = new Label(0,0,"考勤号");
+            Label label2 = new Label(1,0,"姓名");
+            firstSheet.addCell(label1);
+            firstSheet.addCell(label2);
+            Label label3;
+            Label label4;
+            int i = 1;
             while(rs.next()){
-            	String strItem = rs.getString(1)+" "+rs.getString(2)+"\n";
-            	outFile.write(strItem);
+            	label3 = new Label(0,i,rs.getString(1));
+            	label4 = new Label(1,i,rs.getString(2));
+            	firstSheet.addCell(label3);
+                firstSheet.addCell(label4);
+                i++;
         	}
-            outFile.write("考勤记录名单：\n");
             strsql  = "select a.EnrollNumber,a.UserName,b.LogTime from Users a left join LogTmp b on a.EnrollNumber=b.EnrollNumber where b.LogTime is not null order by b.LogTime";
             rs = null;
             rs = stmt.executeQuery(strsql);
-            while(rs.next()){
-            	String strItem = rs.getString(1)+" "+rs.getString(2)+" "+rs.getString(3)+"\n";
-            	outFile.write(strItem);
-            }
+            WritableSheet secondSheet = workbook.createSheet("迟到or加班名单", 0);
+            Label label5 = new Label(0,0,"考勤号");
+            Label label6 = new Label(1,0,"姓名");
+            Label label7 = new Label(2,0,"打卡时间");
+            secondSheet.addCell(label5);
+            secondSheet.addCell(label6);
+            secondSheet.addCell(label7);
+            Label label8;
+            Label label9;
+            Label label10;
+            i=1;
+            if("签到".equals(strAP)){
+            	while(rs.next()){
+            		if((df.parse(rs.getString(3)).compareTo(df.parse(strDT+" 9:00:00")))>0){
+	                	label8 = new Label(0,i,rs.getString(1));
+	                	label9 = new Label(1,i,rs.getString(2));
+	                	label10 = new Label(2,i,rs.getString(3));
+	                	secondSheet.addCell(label8);
+	                    secondSheet.addCell(label9);
+	                    secondSheet.addCell(label10);
+	                    i++;
+            		}
+                }
+            }else if("签退".equals(strAP)){
+            	while(rs.next()){
+            		if((df.parse(rs.getString(3)).compareTo(df.parse(strDT+" 18:30:00")))>0){
+	                	label8 = new Label(0,i,rs.getString(1));
+	                	label9 = new Label(1,i,rs.getString(2));
+	                	label10 = new Label(2,i,rs.getString(3));
+	                	secondSheet.addCell(label8);
+	                    secondSheet.addCell(label9);
+	                    secondSheet.addCell(label10);
+	                    i++;
+            		}
+                }
+            }           
+            //打开流，开始写文件
+            workbook.write();
+            //关闭流
+            workbook.close();
         }  
         catch(Exception e)  
         {  
-            e.printStackTrace();  
-        }finally{  
-            try {  
-                outFile.flush();  
-                outFile.close();  
-                JOptionPane.showMessageDialog(null, "考勤结果已输出至目录"+strFileName, "提示", JOptionPane.INFORMATION_MESSAGE); 
-            } catch (IOException e) {  
-                // TODO Auto-generated catch block  
-                e.printStackTrace();  
-            }  
-        }
+        	JOptionPane.showMessageDialog(null, "分析结果导出失败！", "提示", JOptionPane.ERROR_MESSAGE); 
+            e.printStackTrace();
+            return;
+        } 
+        JOptionPane.showMessageDialog(null, "分析结果已输出至目录"+strFileName, "提示", JOptionPane.INFORMATION_MESSAGE); 
     }
     
     private static DatePicker getDatePicker() {
@@ -495,17 +578,8 @@ public class hfkq extends JFrame{
 
         Dimension dimension = new Dimension(177, 24);
         //构造方法（初始时间，时间显示格式，字体，控件大小）
-        datepick = new DatePicker(date, DefaultFormat, font, dimension);
-        
+        datepick = new DatePicker(date, DefaultFormat, font, dimension);   
         datepick.setLocation(137, 83);//设置起始位置
-        /*
-        //也可用setBounds()直接设置大小与位置
-        datepick.setBounds(137, 83, 177, 24);
-        */
-        // 设置一个月份中需要高亮显示的日子
-        //datepick.setHightlightdays(hilightDays, Color.red);
-        // 设置一个月份中不需要的日子，呈灰色显示
-        //datepick.setDisableddays(disabledDays);
         // 设置国家
         datepick.setLocale(Locale.CHINA);
         // 设置时钟面板可见
